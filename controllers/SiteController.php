@@ -111,21 +111,24 @@ class SiteController extends Controller
             case 'lect':
                 $model = new Lectures();
                 $title = 'лекционных';
+                $array = $this->addList($model, $type);
                 break;
             case 'lab':
                 $model = new Laboratory();
                 $title = 'лабораторных';
+                $array = $this->addList($model, $type);
                 break;
             case 'pract':
                 $model = new Practical();
                 $title = 'практических';
+                $array = $this->addList($model, $type);
                 break;
             case 'indept':
                 $model = new Independent();
                 $title = 'самостоятельных';
+                $array = $this->addList($model, $type);
                 break;
         endswitch;
-        $array = $this->addList($model);
         return $this->render('add-list', compact('array', 'model', 'title'));
     }
 
@@ -145,19 +148,27 @@ class SiteController extends Controller
         return $this->render('source', compact('model'));
     }
 
-    private function addList($model)
+    private function addList($model, $type)
     {
         if (!$model) throw new HttpException(404, 'Error');
         $theme = Theme::find()->with('subject')->all();
+        if ($model->load(Yii::$app->request->post()) && $model->save()) {
+            $sbj = Subject::findOne(['id'=>$model->theme->subject->id]);
+            if($type == 'indept') {
+                $type = 'independent_work';
+            }else{
+                $type = $type.'_hours';
+            }
+            $sbj->$type = $sbj->$type - 1;
+            $sbj->save();
+            Yii::$app->session->set('theme', $model->theme_id);
+            $this->refresh();
+        }
         $array = [];
         $i = 1;
         foreach ($theme as $th):
             $array [$th->subject->name][$th->id] = $th->title;
         endforeach;
-        if ($model->load(Yii::$app->request->post()) && $model->save()) {
-            Yii::$app->session->set('theme', $model->theme_id);
-            $this->refresh();
-        }
         return $array;
     }
     public function actionDocument($code)
@@ -177,5 +188,14 @@ class SiteController extends Controller
     public function actionDelete()
     {
         echo 'Delete';
+    }
+
+    public function actionListHour()
+    {
+        $themeId = Yii::$app->request->post('themeId');
+        $type = Yii::$app->request->post('type');
+        $theme = Theme::findOne(['id'=>$themeId]);
+        $hours = $theme->subject->$type;
+        return $hours;
     }
 }
